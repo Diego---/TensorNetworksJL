@@ -10,36 +10,11 @@ struct Tensor{T, N}
     data::Array{T, N}
 end
 
-"""
-    rank(tensor::Tensor) -> Int
+Base.ndims(::Tensor{T, N}) where {T, N} = N
+Base.eltype(::Type{Tensor{T, N}}) where {T, N} = T
 
-Return the rank (number of dimensions) of `tensor`.
+Base.size(t::Tensor) = size(t.data)
+Base.size(t::Tensor, dim::Integer) = size(t.data, dim)
 
-# Examples
-```jldoctest
-julia> t = Tensor(zeros(2, 3, 4));
-
-julia> rank(t)
-3
-```
-"""
-function rank(tensor::Tensor{T, N}) where {T, N}
-    return N
-end
-
-"""
-    data_type(tensor::Tensor) -> Type
-
-Return the type of the elements of `tensor`.
-
-# Examples
-```jldoctest
-julia> t = Tensor([2, 3, 4]);
-
-julia> data_type(t)
-Int64
-```
-"""
-function data_type(tensor::Tensor{T, N}) where {T, N}
-    return T
-end
+Base.getindex(t::Tensor, inds...) = getindex(t.data, inds...)
+Base.setindex!(t::Tensor, val, inds...) = setindex!(t.data, val, inds...)
