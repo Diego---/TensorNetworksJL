@@ -98,3 +98,24 @@ virtual_dims(ψ::MPS) =
     [size(first(ψ.tensors), 1);
      bond_dims(ψ);
      size(last(ψ.tensors), 3)]
+
+
+function MPS(N::Int, d::Int, D::Int)
+    N > 0 || throw(ArgumentError("Number of sites must be positive."))
+    d > 0 || throw(ArgumentError("Physical dimension must be positive."))
+    D > 0 || throw(ArgumentError("Bond dimension must be positive."))
+
+    tensors = [
+        Tensor(
+            randn(
+                ComplexF64,
+                n == 1 ? 1 : D, # Left tensor has left virtual index of a single value
+                d,
+                n == N ? 1 : D, # Right tensor has right virtual index of a single value
+            )
+        )
+        for n in 1:N
+    ]
+
+    return MPS(tensors)
+end
