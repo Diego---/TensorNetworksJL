@@ -44,20 +44,24 @@ function contract(T::Tensor, M::Tensor, indices::Vector{Pair{Int,Int}})
 
     # Validate the contraction
     for (T_idx, M_idx) in indices
-        @assert (
-            1 <= T_idx <= ndims(T) &&
-            1 <= M_idx <= ndims(M)
-        ) "Trying to contract over indices that are not available."
+        1 <= T_idx <= ndims(T) || throw(BoundsError(T, T_idx))
+        1 <= M_idx <= ndims(M) || throw(BoundsError(M, M_idx))
 
-        @assert (
-            size(T, T_idx) == size(M, M_idx)
-        ) "Tensor dimensions don't match across the selected indices."
+        size(T, T_idx) == size(M, M_idx) || throw(DimensionMismatch("""
+        Cannot contract index $T_idx of T with index $M_idx of M:
+        - Dimension of T (leg $T_idx): $(size(T, T_idx))
+        - Dimension of M (leg $M_idx): $(size(M, M_idx))
+        Leg dimensions must match.
+        """))
     end
 
-    @assert (
-        length(unique(T_contracted_idx)) == length(T_contracted_idx) &&
-        length(unique(M_contracted_idx)) == length(M_contracted_idx)
-    ) "Attempting to use the same index for different contractions."
+    if length(unique(T_contracted_idx)) != length(T_contracted_idx) || 
+        length(unique(M_contracted_idx)) != length(M_contracted_idx)
+        throw(ArgumentError(
+            "Repeated index detected in contraction pairs. " *
+            "Each tensor leg can only be contracted once."
+        ))
+    end
 
     # Permute indices
     # T -> (free indices, contracted indices)
@@ -74,12 +78,12 @@ function contract(T::Tensor, M::Tensor, indices::Vector{Pair{Int,Int}})
 
     # Fuse indices so that the contraction becomes matrix multiplication
     T_row_dim = prod(
-        (size(T, i) for i in T_free_idx);
+        size(T, i) for i in T_free_idx;
         init=1,
     )
 
     T_column_dim = prod(
-        (size(T, i) for i in T_contracted_idx);
+        size(T, i) for i in T_contracted_idx;
         init=1,
     )
 
@@ -96,7 +100,7 @@ function contract(T::Tensor, M::Tensor, indices::Vector{Pair{Int,Int}})
     T_fused = reshape(T_perm, T_row_dim, T_column_dim)
     M_fused = reshape(M_perm, M_row_dim, M_column_dim)
 
-    # Contract
+    # Contract, which is now just a matrix multiplication
     C_fused = T_fused * M_fused
 
     # Unfuse the remaining indices
