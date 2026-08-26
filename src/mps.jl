@@ -76,6 +76,8 @@ end
 
 
 Base.length(ψ::MPS) = length(ψ.tensors)
+Base.getindex(ψ::MPS, inds...) = getindex(ψ.tensors, inds...)
+Base.setindex!(ψ::MPS, val, inds...) = setindex!(ψ.tensors, val, inds...)
 
 """
 Physical dimension, d, for an MPS, assumed to be the same for all sites.
@@ -118,4 +120,42 @@ function MPS(N::Int, d::Int, D::Int)
     ]
 
     return MPS(tensors)
+end
+
+function inner(ϕ::MPS, ψ::MPS)
+    N = length(ψ)
+
+    N == length(ϕ) || 
+        throw(DimensionMismatch(
+            "Both MPS's most have the same number of sites."
+            ))
+
+    physical_dim(ψ) == physical_dim(ϕ) ||
+        throw(DimensionMismatch(
+            "Both MPSs must have the same physical dimension."
+        ))
+
+    # The first tensor is contracted along the physical dimension (s <-> index 2)
+    # as well as the "dummy" dimension (index 1) which makes no sum since its dimension
+    # is set to 1.
+    # This has two surviving indices, (β₁, α₁)
+    E = contract(conj(ϕ[1]), ψ[1], [1 => 1, 2 => 2])
+
+    for n in 2:N
+        # In the first step we contract along the right bond, β₁
+        # The surviving indices are (αₙ₋₁, sₙ, βₙ₋₁)
+        # (βₙ₋₁, αₙ₋₁) × (βₙ₋₁, sₙ, βₙ)
+        # -> (αₙ₋₁, sₙ, βₙ)
+        E = contract(E, conj(ϕ[n]), 1 => 1)
+
+        # In the second step we contract along the physical s and the α virtual bond
+        # The surviving indices are (βₙ, αₙ)
+        # (αₙ₋₁, sₙ, βₙ) × (αₙ₋₁, sₙ, αₙ)
+        # -> (βₙ, αₙ)
+        E = contract(E, ψ[n], [1 => 1, 2 => 2])
+    end
+
+    # Open boundary conditions give α_N = β_N = 1.
+    return E[1, 1]
+
 end

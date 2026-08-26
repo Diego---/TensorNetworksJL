@@ -4,6 +4,6 @@ include("tensor.jl")
 include("contractions.jl")
 include("mps.jl")
 
-export Tensor, contract, MPS
+export Tensor, contract, MPS, inner
 
 end
