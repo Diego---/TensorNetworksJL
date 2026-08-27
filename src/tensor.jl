@@ -19,4 +19,5 @@ Base.size(t::Tensor, dim::Integer) = size(t.data, dim)
 Base.getindex(t::Tensor, inds...) = getindex(t.data, inds...)
 Base.setindex!(t::Tensor, val, inds...) = setindex!(t.data, val, inds...)
 
+Base.copy(T::Tensor) = Tensor(copy(T.data))
 Base.conj(T::Tensor) = Tensor(conj(T.data))
