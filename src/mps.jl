@@ -78,6 +78,7 @@ end
 Base.length(ψ::MPS) = length(ψ.tensors)
 Base.getindex(ψ::MPS, inds...) = getindex(ψ.tensors, inds...)
 Base.setindex!(ψ::MPS, val, inds...) = setindex!(ψ.tensors, val, inds...)
+Base.copy(ψ::MPS) = MPS(copy.(ψ.tensors))
 
 """
 Physical dimension, d, for an MPS, assumed to be the same for all sites.
