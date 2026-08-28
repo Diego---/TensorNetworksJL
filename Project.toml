@@ -2,3 +2,9 @@ name = "TensorNetworksJL"
 uuid = "8c644560-ef3f-44cf-a07e-15188d4fcb3f"
 version = "0.1.0"
 authors = ["Diego Olvera Millán <omega_717@hotmail.com>"]
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[compat]
+LinearAlgebra = "1.12.0"

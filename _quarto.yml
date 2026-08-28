@@ -1,0 +1,22 @@
+project:
+  type: book
+
+julia:
+  exeflags: ["--project=@."]
+
+book:
+  title: "Matrix Product States from Scratch in Julia"
+  chapters:
+    - index.qmd
+    - chapters/01-tensors.qmd
+    - chapters/02-mps.qmd
+    - chapters/03-mpo.qmd
+    - chapters/04-time-evolution.qmd
+    - chapters/05-observables.qmd
+    - chapters/06-ising.qmd
+
+format:
+  html:
+    theme: cosmo
+    code-link: true
+  

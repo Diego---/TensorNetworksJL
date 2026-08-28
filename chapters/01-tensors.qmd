@@ -1,0 +1,312 @@
+# Understanding tensor contractions through reshaping
+
+Consider a rank-3 tensor
+
+$$
+T_{ijk},
+$$
+
+with dimensions
+
+$$
+\dim(i)=2,\qquad \dim(j)=2,\qquad \dim(k)=3,
+$$
+
+and a rank-2 tensor
+
+$$
+M_{lm},
+$$
+
+with
+
+$$
+\dim(l)=\dim(m)=2.
+$$
+
+Thus,
+
+$$
+T\in\mathbb{C}^{2\times2\times3},
+\qquad
+M\in\mathbb{C}^{2\times2}.
+$$
+
+One possible way of visualizing $T$ is as three $2\times2$ slices, one for each value of $k$:
+
+$$
+T[:,:,1]
+=
+\begin{pmatrix}
+T_{111} & T_{121}\\
+T_{211} & T_{221}
+\end{pmatrix},
+$$
+
+$$
+T[:,:,2]
+=
+\begin{pmatrix}
+T_{112} & T_{122}\\
+T_{212} & T_{222}
+\end{pmatrix},
+$$
+
+$$
+T[:,:,3]
+=
+\begin{pmatrix}
+T_{113} & T_{123}\\
+T_{213} & T_{223}
+\end{pmatrix}.
+$$
+
+Similarly,
+
+$$
+M=
+\begin{pmatrix}
+M_{11} & M_{12}\\
+M_{21} & M_{22}
+\end{pmatrix}.
+$$
+
+## Before contracting: the dimensions must match
+
+Suppose we first tried to contract the third index of $T$ with either
+index of $M$.
+
+This is impossible, because
+
+$$
+\dim(k)=3,
+$$
+
+whereas both indices of $M$ have dimension 2.
+
+A contraction requires the two indices being paired to have the same
+dimension. This is analogous to the requirement that the inner
+dimensions agree in ordinary matrix multiplication.
+
+Instead, let us contract the first two indices of $T$ with the two
+indices of $M$, in order:
+
+$$
+i\leftrightarrow l,
+\qquad
+j\leftrightarrow m.
+$$
+
+In the Julia interface, this contraction is written as
+
+```julia
+contract(T, M, [1 => 1, 2 => 2])
+```
+
+Mathematically, it corresponds to
+
+$$
+C_k
+=
+\sum_{i,j} T_{ijk}M_{ij}.
+$$
+
+Only $k$ remains uncontracted, so the result is a rank-1 tensor.
+
+The original tensors have ranks 3 and 2. Since each contraction removes
+one index from each tensor, contracting two pairs gives
+
+$$
+\operatorname{rank}(C)
+=
+3+2-2(2)
+=
+1.
+$$
+
+## Turning the contraction into matrix multiplication
+
+The useful computational idea is to combine several tensor indices into
+a single **fused index**.
+
+For $T_{ijk}$, the contracted indices are $i$ and $j$. We combine them
+into a single index
+
+$$
+I=(i,j).
+$$
+
+The remaining index $k$ stays explicit:
+
+$$
+T_{ijk}
+\longrightarrow
+\widetilde{T}_{kI}.
+$$
+
+Since
+
+$$
+\dim(k)=3
+$$
+
+and
+
+$$
+\dim(I)=\dim(i)\dim(j)=2\times2=4,
+$$
+
+the rank-3 tensor can be represented as a $3\times4$ matrix.
+
+For $M_{lm}$, both indices are contracted, so they can also be fused
+into a single index,
+
+$$
+I=(l,m),
+$$
+
+giving a vector of dimension
+
+$$
+2\times2=4.
+$$
+
+Thus, the original tensor contraction has become an ordinary
+matrix-vector multiplication:
+
+$$
+C_k
+=
+\sum_I \widetilde{T}_{kI}\widetilde{M}_I.
+$$
+
+## The ordering of a fused index matters
+
+There is one subtle point that is easy to overlook.
+
+Writing
+
+$$
+I=(i,j)
+$$
+
+does not, by itself, specify which integer value of $I$ corresponds to
+each pair $(i,j)$.
+
+For example, we could enumerate the pairs as
+
+$$
+(1,1),\ (2,1),\ (1,2),\ (2,2),
+$$
+
+or instead as
+
+$$
+(1,1),\ (1,2),\ (2,1),\ (2,2).
+$$
+
+Either convention is mathematically valid.
+
+What matters is that **the same convention must be used for both
+tensors**. Otherwise, matrix multiplication would pair tensor entries
+corresponding to different values of the original indices.
+
+For Julia arrays, it is natural to use Julia's column-major ordering.
+For a $2\times2$ array, the entries are traversed as
+
+$$
+(1,1),\ (2,1),\ (1,2),\ (2,2).
+$$
+
+Before reshaping $T$, we first permute its indices so that the
+uncontracted index $k$ appears first and the contracted indices $i,j$
+appear together:
+
+$$
+T_{ijk}
+\longrightarrow
+T_{kij}.
+$$
+
+We then fuse the contracted pair $(i,j)$ into a single index,
+
+$$
+T_{kij}
+\longrightarrow
+\widetilde T_{k(ij)}.
+$$
+
+In the following equations, fused indices are enclosed in parentheses
+to emphasize that several original tensor indices are being represented
+by a single composite index. The parentheses have no additional
+mathematical meaning.
+
+Using Julia's column-major convention, we obtain
+
+$$
+\widetilde{M}
+=
+\begin{pmatrix}
+M_{(11)}\\
+M_{(21)}\\
+M_{(12)}\\
+M_{(22)}
+\end{pmatrix},
+$$
+
+while the permuted and reshaped tensor $T$ becomes
+
+$$
+\widetilde{T}
+=
+\begin{pmatrix}
+T_{1(11)} & T_{1(21)} & T_{1(12)} & T_{1(22)}\\
+T_{2(11)} & T_{2(21)} & T_{2(12)} & T_{2(22)}\\
+T_{3(11)} & T_{3(21)} & T_{3(12)} & T_{3(22)}
+\end{pmatrix}.
+$$
+
+Here, the first index labels the surviving $k$ index, while the
+parenthesized pair represents the fused $(i,j)$ index.
+
+Their product is
+
+$$
+\widetilde{T}\widetilde{M}
+=
+\begin{pmatrix}
+\sum_{i,j}T_{ij1}M_{ij}\\
+\sum_{i,j}T_{ij2}M_{ij}\\
+\sum_{i,j}T_{ij3}M_{ij}
+\end{pmatrix}.
+$$
+
+which is precisely the desired contraction
+
+$$
+C_k
+=
+\sum_{i,j}T_{ijk}M_{ij}.
+$$
+
+The important point is therefore not that there is a unique way to fuse
+tensor indices. Rather, the ordering chosen for the fused contracted
+index must be **consistent on both sides of the contraction**.
+
+This is what allows a general tensor contraction to be reduced to
+ordinary matrix multiplication:
+
+$$
+\boxed{
+\text{permute indices}
+\longrightarrow
+\text{fuse indices with reshape}
+\longrightarrow
+\text{matrix multiplication}
+\longrightarrow
+\text{reshape the result}
+}
+$$
+
+The permutation step becomes necessary when the contracted and
+uncontracted indices are not already arranged in the appropriate order.

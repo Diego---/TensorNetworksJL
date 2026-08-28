@@ -1,0 +1,9 @@
+---
+title: "Matrix Product States from Scratch in Julia"
+---
+
+This project implements a simple Matrix Product State time-evolution
+algorithm with open boundary conditions.
+
+The implementation follows the Tensor Networks exercises from the
+CERN–MPQ–UIBK Doctoral School on Quantum Simulation of Fundamental Physics.
