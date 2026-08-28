@@ -192,9 +192,9 @@ function truncated_svd(A::AbstractMatrix, ϵ::Real)
     χ = max(1, count(>(ϵ), F.S))
 
     # We truncate S, the columns of U, and the rows of Vt
-    U  = F.U[:, 1:χ]
+    U  = F.U[:,1:χ]
     S  = F.S[1:χ]
-    Vt = F.Vt[1:χ, :]
+    Vt = F.Vt[1:χ,:]
 
     return U, S, Vt
 end
@@ -323,4 +323,46 @@ function svdcompress(ψ::MPS, cut::Int, ϵ::Real=0)::MPS
     end
 
     return ψ_copy
+end
+
+"""
+    entanglement_entropy(ψ::MPS, cut::Int)::Real
+
+Calculates the entanglement entropy between subsystems ψ[1:`cut`] and ψ[`cut`+1:N].
+
+# Arguments
+- `ψ::MPS`: The original Matrix Product State.
+- `cut::Int`: The site index forming the boundary of the left and right sweeps.
+- `ϵ::Real`: The threshold below which singular values are truncated (default is 0).
+
+# Returns
+- The entanglement entropy of the compressed `MPS` instance between subsystems separated
+at site `cut`.
+"""
+function entanglement_entropy(ψ::MPS, cut::Int, ϵ::Real=0)::Real
+    # First, bring the MPS into mixed-canonical form at the cut
+    ψ_mixed = svdcompress(ψ, cut, ϵ)
+    
+    # Extract the center tensor
+    A_center = ψ_mixed[cut]
+    D_left, d, D_right = size(A_center)
+    
+    # Reshape to matrix by fusing the left and physical bond ((αₙ₋₁, sₙ), αₙ)
+    A_mat = reshape(A_center.data, D_left * d, D_right)
+    
+    # Perform the SVD to get the Schmidt coefficients (singular values)
+    F = svd(A_mat)
+    λ = F.S  # These are the Schmidt coefficients
+    
+    # Calculate probabilities p_i = λ_i^2
+    p = λ .^ 2
+    
+    # Normalize just in case the original MPS wasn't perfectly normalized
+    p = p ./ sum(p)
+    
+    # Calculate Von Neumann entropy: -sum(p * log(p))
+    # We only sum over p > 0 to avoid log(0) errors
+    S_vN = -sum(x * log(x) for x in p if x > 0)
+    
+    return S_vN
 end
