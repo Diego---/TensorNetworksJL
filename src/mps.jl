@@ -164,16 +164,19 @@ function inner(ϕ::MPS, ψ::MPS)::Number
 end
 
 """
-    truncated_svd(A::AbstractMatrix, ϵ::Real)
+    truncated_svd(A::AbstractMatrix, ϵ::Real, Dmax::Union{Nothing, Int})
 
 Computes the Singular Value Decomposition (SVD) of a matrix `A` and truncates small singular values.
 
 Singular values ≤ `ϵ` are discarded, except that at least the largest singular value is always retained 
 to prevent zeroing out the entire state.
 
+An optional maximum bond size can be assigned, and at most `Dmax` virtual bonds will be used.
+
 # Arguments
 - `A::AbstractMatrix`: The matrix to be decomposed.
 - `ϵ::Real`: The truncation tolerance.
+- `Dmax::Union{Nothing, Int}`: Optional maximum bond size.
 
 # Returns
 - `U::Matrix`: The truncated left singular vectors.
@@ -182,14 +185,30 @@ to prevent zeroing out the entire state.
 
 Does not mutate any arguments.
 """
-function truncated_svd(A::AbstractMatrix, ϵ::Real)
+function truncated_svd(
+    A::AbstractMatrix,
+    ϵ::Real,
+    Dmax::Union{Nothing, Int}=nothing
+    )
     ϵ >= 0 || throw(ArgumentError("SVD tolerance must be nonnegative."))
+
+    if Dmax !== nothing
+        Dmax > 0 ||
+            throw(ArgumentError(
+                "Maximum bond dimension must be positive."
+            ))
+    end
 
     F = svd(A)
 
     # We truncate the singular values that are less than the tolerance
     # If all are below it, we keep only the biggest one
     χ = max(1, count(>(ϵ), F.S))
+
+    # Impose the maximum bond dimension, if requested.
+    if Dmax !== nothing
+        χ = min(χ, Dmax)
+    end
 
     # We truncate S, the columns of U, and the rows of Vt
     U  = F.U[:,1:χ]
@@ -200,7 +219,7 @@ function truncated_svd(A::AbstractMatrix, ϵ::Real)
 end
 
 """
-    left_svd_step!(ψ::MPS, n::Int, ϵ::Real)
+    left_svd_step!(ψ::MPS, n::Int, ϵ::Real, Dmax::Union{Nothing, Int})
 
 Performs a left-to-right SVD sweep step at site `n`, pushing the orthogonality center to site `n+1`.
 
@@ -214,13 +233,19 @@ tensor at site `n+1`.
 - `ψ::MPS`: The Matrix Product State.
 - `n::Int`: The index of the site to decompose.
 - `ϵ::Real`: The truncation tolerance.
+. `Dmax::Union{Nothing, Int}`: Optional maximum bond size.
 
 # Returns
 - The updated tensor at site `n+1` (as a result of the assignment).
 
 Mutates the MPS `ψ` in place.
 """
-function left_svd_step!(ψ::MPS, n::Int, ϵ::Real)
+function left_svd_step!(
+    ψ::MPS,
+    n::Int,
+    ϵ::Real,
+    Dmax::Union{Nothing, Int}=nothing
+    )
     # First we reshape the current tensor
     A = ψ[n]
     D_left, d, D_right = size(A)
@@ -230,7 +255,7 @@ function left_svd_step!(ψ::MPS, n::Int, ϵ::Real)
     A_mat = reshape(A.data, D_left * d, D_right)
 
     # We perform an SVD and truncation
-    U, S, Vt = truncated_svd(A_mat, ϵ)
+    U, S, Vt = truncated_svd(A_mat, ϵ, Dmax)
     χ = length(S)
 
     # U_tensor has indices (αₙ₋₁, sₙ, γₙ), we must reshape
@@ -244,7 +269,7 @@ function left_svd_step!(ψ::MPS, n::Int, ϵ::Real)
 end
 
 """
-    right_svd_step!(ψ::MPS, n::Int, ϵ::Real)
+    right_svd_step!(ψ::MPS, n::Int, ϵ::Real, Dmax::Union{Nothing, Int})
 
 Performs a right-to-left SVD sweep step at site `n`, pushing the orthogonality center to site `n-1`.
 
@@ -258,13 +283,19 @@ tensor at site `n-1`.
 - `ψ::MPS`: The Matrix Product State.
 - `n::Int`: The index of the site to decompose.
 - `ϵ::Real`: The truncation tolerance.
+- `Dmax::Union{Nothing, Int}`: Optional maximum bond size.
 
 # Returns
 - The updated tensor at site `n-1` (as a result of the assignment).
 
 Mutates the MPS `ψ` in place.
 """
-function right_svd_step!(ψ::MPS, n::Int, ϵ::Real)
+function right_svd_step!(
+    ψ::MPS,
+    n::Int,
+    ϵ::Real,
+    Dmax::Union{Nothing, Int}=nothing
+    )
     # First we reshape the current tensor
     A = ψ[n]
     D_left, d, D_right = size(A)
@@ -274,7 +305,7 @@ function right_svd_step!(ψ::MPS, n::Int, ϵ::Real)
     A_mat = reshape(A.data, D_left, d * D_right)
 
     # We perform an SVD and truncation
-    U, S, Vt = truncated_svd(A_mat, ϵ)
+    U, S, Vt = truncated_svd(A_mat, ϵ, Dmax)
     χ = length(S)
 
     # Vt_tensor has indices (γₙ₋₁, sₙ, αₙ), we must reshape
@@ -289,7 +320,7 @@ end
 
 
 """
-    svdcompress(ψ::MPS, cut::Int, ϵ::Real=0)::MPS
+    svdcompress(ψ::MPS, cut::Int, ϵ::Real=0, Dmax::Union{Nothing, Int})::MPS
 
 Compresses an MPS using SVD truncation, targeting an orthogonality center at a specified `cut`.
 
@@ -303,30 +334,41 @@ always retained.
 - `ψ::MPS`: The original Matrix Product State.
 - `cut::Int`: The site index forming the boundary of the left and right sweeps.
 - `ϵ::Real`: The threshold below which singular values are truncated (default is 0).
+- `Dmax::Union{Nothing, Int}`: Optional maximum bond size.
 
 # Returns
 - A new, compressed `MPS` instance.
 
 Does not mutate the original MPS (operates on a copy).
 """
-function svdcompress(ψ::MPS, cut::Int, ϵ::Real=0)::MPS
+function svdcompress(
+    ψ::MPS,
+    cut::Int,
+    ϵ::Real=0,
+    Dmax::Union{Nothing, Int}=nothing
+    )::MPS
     N = length(ψ)
+
+    1 <= cut <= N ||
+        throw(BoundsError(
+            "Cut must satisfy 1 <= cut <= $N."
+        ))
 
     ψ_copy = copy(ψ)
 
     for n in 1:cut-1
-        left_svd_step!(ψ_copy, n, ϵ)
+        left_svd_step!(ψ_copy, n, ϵ, Dmax)
     end
 
     for n in N:-1:cut+1
-        right_svd_step!(ψ_copy, n, ϵ)
+        right_svd_step!(ψ_copy, n, ϵ, Dmax)
     end
 
     return ψ_copy
 end
 
 """
-    entanglement_entropy(ψ::MPS, cut::Int)::Real
+    entanglement_entropy(ψ::MPS, cut::Int, ϵ::Real, Dmax::Union{Nothing, Int})::Real
 
 Calculates the entanglement entropy between subsystems ψ[1:`cut`] and ψ[`cut`+1:N].
 
@@ -334,14 +376,20 @@ Calculates the entanglement entropy between subsystems ψ[1:`cut`] and ψ[`cut`+
 - `ψ::MPS`: The original Matrix Product State.
 - `cut::Int`: The site index forming the boundary of the left and right sweeps.
 - `ϵ::Real`: The threshold below which singular values are truncated (default is 0).
+- `Dmax::Union{Nothing, Int}`: Optional maximum bond size.
 
 # Returns
 - The entanglement entropy of the compressed `MPS` instance between subsystems separated
 at site `cut`.
 """
-function entanglement_entropy(ψ::MPS, cut::Int, ϵ::Real=0)::Real
+function entanglement_entropy(
+    ψ::MPS,
+    cut::Int,
+    ϵ::Real=0,
+    Dmax::Union{Nothing, Int}=nothing
+    )::Real
     # First, bring the MPS into mixed-canonical form at the cut
-    ψ_mixed = svdcompress(ψ, cut, ϵ)
+    ψ_mixed = svdcompress(ψ, cut, ϵ, Dmax)
     
     # Extract the center tensor
     A_center = ψ_mixed[cut]
@@ -365,4 +413,44 @@ function entanglement_entropy(ψ::MPS, cut::Int, ϵ::Real=0)::Real
     S_vN = -sum(x * log(x) for x in p if x > 0)
     
     return S_vN
+end
+
+
+"""
+    normalize_mps(ψ::MPS) -> MPS
+
+Return a normalized copy of the MPS `ψ`.
+
+The norm is computed as
+
+    ||ψ|| = sqrt(⟨ψ|ψ⟩),
+
+and one site tensor is divided by this value. Scaling a single MPS
+tensor scales the complete many-body state by the same factor.
+
+# Arguments
+- `ψ::MPS`: Matrix Product State to normalize.
+
+# Returns
+- `MPS`: A copy representing `ψ / ||ψ||`.
+
+# Throws
+- `ArgumentError`: If the state has zero norm.
+"""
+function normalize_mps(ψ::MPS)::MPS
+    ψ_norm² = real(inner(ψ, ψ))
+
+    ψ_norm² > 0 ||
+        throw(ArgumentError(
+            "Cannot normalize an MPS with zero norm."
+        ))
+
+    ψ_norm = sqrt(ψ_norm²)
+
+    ψ_normalized = copy(ψ)
+
+    ψ_normalized[1] =
+        Tensor(ψ_normalized[1].data / ψ_norm)
+
+    return ψ_normalized
 end

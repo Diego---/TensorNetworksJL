@@ -11,6 +11,7 @@ export Tensor,
        contract,
        MPS,
        inner,
+       physical_dim,
        svdcompress,
        entanglement_entropy,
        MPO,
@@ -21,6 +22,7 @@ export Tensor,
        two_site_operator_mpo,
        one_site_operator_mpo,
        expectation_nearest_neighbor,
-       expectation_one_body
+       expectation_one_body,
+       normalize_mps
 
 end
